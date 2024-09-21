@@ -1,5 +1,10 @@
 voting application
 
+// schema link
+       https://app.eraser.io/workspace/6sRfTy0PW2MZewMQzEmj?origin=share
+
+
+
 note- a functianlity where user can give vote to the given set of candidate
 
 Models?
@@ -46,5 +51,4 @@ admin candidate management:
         /candidate/candidate: DELETE- Delete a candiate from the list.
         
 
-       // schema link
-       https://app.eraser.io/workspace/6sRfTy0PW2MZewMQzEmj?origin=share
+       
