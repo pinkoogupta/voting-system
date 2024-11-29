@@ -1,38 +1,30 @@
-import {asyncHandler} from "../utils/asyncHandler.js";
-import jwt from "jsonwebtoken";
-import {User} from "../models/user.model.js";
-import {apiError} from "../utils/apiError.js";
+import jwt from 'jsonwebtoken';
 
+// Middleware for JWT authentication
+export const jwtAuthMiddleware = (req, res, next) => {
+    // Check if the request headers have an authorization field
+    const authorization = req.headers.authorization;
+    if (!authorization) return res.status(401).json({ error: 'Token Not Found' });
 
-export const verifyJWT=asyncHandler(async(req,res,next)=>{
-  try {
-    //for the access of  all the cookies
-   const token= req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ","")
- //  console.log(token);
-   if(!token){
-    apiError(res,401,false,"unauthorized request");
-    return;
-   }
- const decodedToken= jwt
-   .verify(token,process.env.ACCESS_TOKEN_SECRET)
+    // Extract the JWT token from the request headers
+    const token = authorization.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
+    try {
+        // Verify the JWT token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-const user=await User.findById(decodedToken?._id)
-.select("-password -refreshToken")
+        // Attach user information to the request object
+        req.user = decoded;
+        next();
+    } catch (err) {
+        console.error(err);
+        res.status(401).json({ error: 'Invalid token' });
+    }
+};
 
-
-if(!user){
-    //todo: discuss about frontend
-    apiError(res,401,false,"invalid access token");
-    return;
-}
-//  set the object user 
-req.user=user;
-next();
-
-  } catch (error) {
-   apiError(res,401,false,error?.message || "invalid access token");
-   return;
-  }
-
-});
+// Function to generate a JWT token
+export const generateToken = (userData) => {
+    // Generate a new JWT token using user data
+    return jwt.sign(userData, process.env.JWT_SECRET, { expiresIn: 30000 });
+};
