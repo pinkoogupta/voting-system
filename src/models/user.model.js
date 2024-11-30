@@ -1,8 +1,10 @@
 import mongoose,{Schema} from 'mongoose';
 import bcrypt from 'bcrypt';
+import jwt from "jsonwebtoken"
 
 // Define the Person schema
-const userSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema(
+    {
     name: {
         type: String,
         required: true
@@ -38,7 +40,13 @@ const userSchema = new mongoose.Schema({
     isVoted: {
         type: Boolean,
         default: false
+    },
+    refreshToken: {
+        type: String
     }
+},
+{
+    timestamps: true
 });
 
 
@@ -62,7 +70,7 @@ userSchema.pre('save', async function(next){
     }
 })
 
-userSchema.methods.comparePassword = async function(candidatePassword){
+userSchema.methods.isPasswordCorrect = async function(candidatePassword){
     try{
         // Use bcrypt to compare the provided password with the hashed password
         const isMatch = await bcrypt.compare(candidatePassword, this.password);
@@ -71,6 +79,39 @@ userSchema.methods.comparePassword = async function(candidatePassword){
         throw err;
     }
 }
+
+userSchema.methods.generateAccessToken = function(){
+    return jwt.sign(
+        {
+            _id: this._id,
+            email: this.email,
+            name: this.name,
+            age: this.age,
+            aadharCardNumber:this.aadharCardNumber
+        },
+        process.env.ACCESS_TOKEN_SECRET,
+        {
+            expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+        }
+    )
+}
+userSchema.methods.generateRefreshToken = function(){
+    return jwt.sign(
+        {
+            _id: this._id,
+            
+        },
+        process.env.REFRESH_TOKEN_SECRET,
+        {
+            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+        }
+    )
+
+    
+}
+
+
+
 
 export const User = mongoose.model("User", userSchema);
 

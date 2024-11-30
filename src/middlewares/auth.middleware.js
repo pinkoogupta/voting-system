@@ -1,30 +1,30 @@
 import jwt from 'jsonwebtoken';
+import { User } from './../models/user.model.js';
 
 // Middleware for JWT authentication
-export const jwtAuthMiddleware = (req, res, next) => {
-    // Check if the request headers have an authorization field
-    const authorization = req.headers.authorization;
-    if (!authorization) return res.status(401).json({ error: 'Token Not Found' });
-
-    // Extract the JWT token from the request headers
-    const token = authorization.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Unauthorized' });
-
+export const jwtAuthMiddleware = async (req, res, next) => {
     try {
-        // Verify the JWT token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // Access token from cookies or Authorization header
+        const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
 
-        // Attach user information to the request object
-        req.user = decoded;
+        if (!token) {
+            return res.status(401).json({ error: "Unauthorized request" });
+        }
+
+        // Verify the token
+        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+
+        // Fetch user details based on token
+        const user = await User.findById(decodedToken?._id).select("-password -refreshToken");
+
+        if (!user) {
+            return res.status(401).json({ error: "Invalid access token" });
+        }
+
+        // Attach user to request object
+        req.user = user;
         next();
-    } catch (err) {
-        console.error(err);
-        res.status(401).json({ error: 'Invalid token' });
+    } catch (error) {
+        return res.status(401).json({ error: error?.message || "Invalid access token" });
     }
-};
-
-// Function to generate a JWT token
-export const generateToken = (userData) => {
-    // Generate a new JWT token using user data
-    return jwt.sign(userData, process.env.JWT_SECRET, { expiresIn: 30000 });
 };

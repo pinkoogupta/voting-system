@@ -1,18 +1,30 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import bodyParser from 'body-parser';
+
 
 import db from './db/db.js'; // Ensure `db.js` uses ESM or has a `.mjs` extension.
 import userRoutes from './routes/user.route.js';
 import candidateRoutes from './routes/candidate.Route.js';
+import cors from "cors"
+import cookiesParser from "cookie-parser"
 
+const app =express();
+
+app.use(cors({
+    origin:process.env.CORS_ORIGIN,
+    credentials:true
+}))
+app.use(express.json({limit:"16kb"}));
+app.use(express.urlencoded({extended:true,limit:"16kb"}));
+app.use(express.static("public"));
+app.use(cookiesParser());
 dotenv.config();
 
-const app = express();
+
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(bodyParser.json()); // Parse JSON in request bodies
+
 
 // Use the routers
 app.use('/user', userRoutes);

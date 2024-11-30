@@ -1,6 +1,22 @@
 import { User } from './../models/user.model.js';
-import { generateToken } from '../middlewares/auth.middleware.js';
 import mongoose from 'mongoose';
+
+const generateAccessAndRefreshToken = async (userId, res) => {
+    try {
+        const user = await User.findById(userId);
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        user.accessToken = accessToken;
+        user.refreshToken = refreshToken;
+        await user.save({ validateBeforeSave: false });
+
+        return { accessToken, refreshToken };
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Something went wrong while generating tokens' });
+    }
+};
 
 // Signup Controller
 export const signup = async (req, res) => {
@@ -14,7 +30,7 @@ export const signup = async (req, res) => {
         }
 
         // Validate Aadhar Card Number must have exactly 12 digits
-        if (!/^\d{12}$/.test(data.aadharCardNumber)) {
+        if (!/\d{12}$/.test(data.aadharCardNumber)) {
             return res.status(400).json({ error: 'Aadhar Card Number must be exactly 12 digits' });
         }
 
@@ -25,18 +41,14 @@ export const signup = async (req, res) => {
         }
 
         // Create a new User document using the Mongoose model
-        const newUser = new User(data);
+        const user = await User.create(data);
+        const createdUser = await User.findById(user._id).select('-password -refreshToken');
 
-        // Save the new user to the database
-        const response = await newUser.save();
-        console.log('Data saved');
+        if (!createdUser) {
+            return res.status(500).json({ error: 'Something went wrong while registering' });
+        }
 
-        const payload = {
-            id: response.id,
-        };
-        const token = generateToken(payload);
-
-        res.status(200).json({ response: response, token: token });
+        return res.status(201).json({ response: createdUser, message: 'User registered successfully' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -52,16 +64,29 @@ export const login = async (req, res) => {
             return res.status(400).json({ error: 'Aadhar Card Number and password are required' });
         }
 
-        const user = await User.findOne({ aadharCardNumber });
-
-        if (!user || !(await user.comparePassword(password))) {
-            return res.status(401).json({ error: 'Invalid Aadhar Card Number or Password' });
+        const user = await User.findOne({ $or: [{ aadharCardNumber }, { email: aadharCardNumber }] });
+        if (!user) {
+            return res.status(404).json({ error: "User doesn't exist" });
         }
 
-        const payload = { id: user.id };
-        const token = generateToken(payload);
+        const isPasswordValid = await user.isPasswordCorrect(password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Incorrect password or user credentials' });
+        }
 
-        res.status(200).json({message:'loggedin' ,token });
+        const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id, res);
+        const loggedInUser = await User.findById(user._id).select('-password -refreshToken');
+
+        const options = {
+            httpOnly: true,
+            secure: true,
+        };
+
+        return res
+            .status(200)
+            .cookie('accessToken', accessToken, options)
+            .cookie('refreshToken', refreshToken, options)
+            .json({ user: loggedInUser, accessToken, refreshToken, message: 'User logged in successfully' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -72,7 +97,12 @@ export const login = async (req, res) => {
 export const profile = async (req, res) => {
     try {
         const userId = req.user.id;
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).select('-password -refreshToken');
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
         res.status(200).json({ user });
     } catch (err) {
         console.error(err);
@@ -91,19 +121,16 @@ export const updatePassword = async (req, res) => {
         }
 
         const user = await User.findById(userId);
-
-        if (!user || !(await user.comparePassword(currentPassword))) {
+        if (!user || !(await user.isPasswordCorrect(currentPassword))) {
             return res.status(401).json({ error: 'Invalid current password' });
         }
 
         user.password = newPassword;
         await user.save();
 
-        console.log('Password updated');
-        res.status(200).json({ message: 'Password updated' });
+        res.status(200).json({ message: 'Password updated successfully' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
-

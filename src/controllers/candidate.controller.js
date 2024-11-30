@@ -1,6 +1,5 @@
 import {User} from '../models/user.model.js';
 import Candidate from '../models/candidate.model.js';
-import {generateToken} from '../middlewares/auth.middleware.js'
 
 
 // Utility function to check if a user has admin role
